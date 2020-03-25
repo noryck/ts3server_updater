@@ -3,16 +3,56 @@ green='\e[32m'
 red='\e[31m'
 yellow='\e[33m'
 white='\e[39m'
-
 ok="${green}[ OK ]${white}"
 warning="${yellow}[ WARNING ]${white}"
 error="${red}[ ERROR ]${white}"
 
 ts_home="/home/teamspeak"
 server_path="${ts_home}/server"
-version_path="${server_path}/version"
+version_path="${server_path}/latest"
 ts3server_minimal_runscript="ts3server_minimal_runscript.sh"
 exclude="${ts3server_minimal_runscript}"
+ts3server_name="teamspeak3-server_linux_amd64"
+version_pattern="[0-9]{0,2}\.[0-9]{1,3}\.[0-9]{1,3}"
+search_string="${ts3server_name}-${version_pattern}.tar.bz2"
+download_site="https://www.teamspeak.com/en/downloads/#server"
+file_server="https://files.teamspeak-services.com/releases/server"
+index='index.html'
+last_downloaded="last_downloaded.txt"
+
+download_ts3server () {
+
+  [ -r ${last_downloaded} ] && last_downloaded_file=`cat ${last_downloaded}`
+  
+  wget -O ${index} -q $download_site
+  
+  if [ -r ${index} ]; then
+    file=`grep -Eo "${search_string}" ${index} | uniq`
+    if [ ! -z ${file} ]; then
+      version=`echo ${file} | grep -Eo "${version_pattern}"`
+      donwload_link="${file_server}/${version}/${file}"
+      if [ "${file}" != "${last_downloaded_file}" ]; then
+        wget -O ${file} -q ${donwload_link}
+        if [ $? -eq 0 ]; then
+          echo ${file} > ${last_downloaded}
+          echo "${file} donwloaded from ${donwload_link}"
+          mkdir tmp
+          mv ${file} tmp
+          tar -xf tmp/${file} -C tmp
+          mv tmp/${ts3server_name} ${version}
+          # Replace by sodoers systemctl
+          ../ts3server_minimal_runscript.sh stop
+          ./check_installation.sh
+          ../ts3server_minimal_runscript.sh start
+          rm -r tmp
+          #add cleanup verion root@mars /home/teamspeak/server # ls -d 3* | sort -V
+          # ls -d 3* | sort -V | wc -l
+        fi
+      fi
+    fi
+  fi
+
+}
 
 determing_new_version () {
 
@@ -75,6 +115,7 @@ check_ts3server_minimal_runscript () {
 
 }
 
+download_ts3server
 determing_new_version
 check_symlinks_ts_home
 check_ts3server_minimal_runscript
